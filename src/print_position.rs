@@ -100,20 +100,20 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
 
         if self.next_offset < self.string.len() && self.string.as_bytes()[self.next_offset] == 0x1b
         {
-            if self.next_offset + 2 < self.string.len()
+            if self.next_offset + 2 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1bc")
             {
                 self.next_offset += 2;
                 self.gi_iterator.next();
                 self.gi_iterator.next();
-            } else if self.next_offset + 3 < self.string.len()
+            } else if self.next_offset + 3 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1b[m")
             {
                 self.next_offset += 3;
                 self.gi_iterator.next();
                 self.gi_iterator.next();
                 self.gi_iterator.next();
-            } else if self.next_offset + 2 < self.string.len()
+            } else if self.next_offset + 4 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1b[0m")
             {
                 self.next_offset += 4;
@@ -192,12 +192,23 @@ mod tests {
     #[test]
     fn trailing_reset() -> Result<()> {
         //let test_input = ["abc", esc_sgr_color(), "def", esc_sgr_reset0()];
-        let test_input = [ "f", esc_sgr_reset0()];
-        let e1 = [esc_sgr_color(), "d"].join("");
+        let test_input = [ "ef", esc_sgr_reset0()];
         let e2 = ["f", esc_sgr_reset0()].join("");
         //let expect = vec![(0, "a"), (1, "b"), (2, "c"), (3, &e1), (10, "e"), (11, "f"), (12, &e2)];
-        let expect = vec![(0, &e2)];
+        let expect = vec![(0, "e"), (1, &e2)];
 
-        run_test(&test_input, &[(0, &e2)])
+        run_test(&test_input, &expect)
     }
+    #[test]
+    fn embedded_csi_and_trailing_reset() -> Result<()> {
+        let test_input = ["abc", esc_sgr_color(), "def", esc_sgr_reset()];
+        //let test_input = [ "f", esc_sgr_reset0()];
+        let e1 = [esc_sgr_color(), "d"].join("");
+        let e2 = ["f", esc_sgr_reset()].join("");
+        let expect = vec![(0, "a"), (1, "b"), (2, "c"), (3, &e1), (10, "e"), (11, &e2)];
+        //let expect = vec![(0, &e2)];
+
+        run_test(&test_input, &expect)
+    }
+    
 }
