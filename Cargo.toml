@@ -27,3 +27,4 @@ unicode-segmentation = "1.10.1"
 
 [dev-dependencies]
 anyhow = "1.0.69"
+arbitrary = { version = "1.2.3", features = ["derive"] }

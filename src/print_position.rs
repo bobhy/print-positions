@@ -19,6 +19,7 @@ pub struct PrintPositionIndices<'a> {
 /// Factory method to create a new [PrintPositionIndices] iterator
 ///
 #[inline]
+#[allow(non_snake_case)]
 pub fn new_printPositionIndices<'b>(s: &'b str) -> PrintPositionIndices<'b> {
     let iter = UnicodeSegmentation::grapheme_indices(s, true);
     PrintPositionIndices {
@@ -136,6 +137,7 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     #[allow(unused_imports)]

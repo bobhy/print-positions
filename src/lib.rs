@@ -9,9 +9,8 @@ fn main() {
 
 }
 
-mod print_position;
+pub mod print_position;
 
-use print_position::{ PrintPositionIndices, new_printPositionIndices};
 /// A print position is a slice of string which a user would read as a single 'character'
 /// occupying one visible position on a printed page or screen.  
 /// The slice contains an extended grapheme cluster as defined by 
