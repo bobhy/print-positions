@@ -13,6 +13,7 @@ fuzz_target!(|data: &[u8]| {
         for (offset, grap) in print_positions::print_position::new_printPositionIndices(s) {
             assert!(offset < s.len());
             assert!((last_offset == 0  && offset == 0 ) || offset > last_offset, "current offset {offset} not > previous {last_offset}");
+            
             last_offset = offset;
             out_grap.push_str(grap);
         }

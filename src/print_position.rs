@@ -63,7 +63,7 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
                     if ascii_byte == 0x1b {
                         escape_state = EscapeState::EscapeSeen;
                     } else {
-                        break;      // terminate the grapheme
+                        break; // terminate the grapheme
                     }
                 }
 
@@ -99,7 +99,8 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
         // if, perversely, there is more than one in sequence, we'll just take one and
         // leave the others for the beginning of the next iteration.
 
-        if self.next_offset < self.string.len() && self.string.as_bytes()[self.next_offset] == 0x1b
+        while self.next_offset < self.string.len()
+            && self.string.as_bytes()[self.next_offset] == 0x1b
         {
             if self.next_offset + 2 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1bc")
@@ -122,6 +123,8 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
                 self.gi_iterator.next();
                 self.gi_iterator.next();
                 self.gi_iterator.next();
+            } else {
+                break; // not one we're interested in at end of grap.
             }
         }
         // return everything between start and end offsets
@@ -129,7 +132,10 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
         if retlen <= 0 {
             return None;
         } else {
-            let retval = (self.cur_offset, &self.string[self.cur_offset..self.next_offset]);
+            let retval = (
+                self.cur_offset,
+                &self.string[self.cur_offset..self.next_offset],
+            );
             // advance start to one beyond end of what we're returning
             self.cur_offset = self.next_offset;
             return Some(retval);
@@ -194,7 +200,7 @@ mod tests {
     #[test]
     fn trailing_reset() -> Result<()> {
         //let test_input = ["abc", esc_sgr_color(), "def", esc_sgr_reset0()];
-        let test_input = [ "ef", esc_sgr_reset0()];
+        let test_input = ["ef", esc_sgr_reset0()];
         let e2 = ["f", esc_sgr_reset0()].join("");
         //let expect = vec![(0, "a"), (1, "b"), (2, "c"), (3, &e1), (10, "e"), (11, "f"), (12, &e2)];
         let expect = vec![(0, "e"), (1, &e2)];
@@ -212,5 +218,78 @@ mod tests {
 
         run_test(&test_input, &expect)
     }
-    
+
+    #[test]
+    fn double_trailing_reset() -> Result<()> {
+        let test_input = [
+            "abc",
+            esc_sgr_color(),
+            "def",
+            esc_sgr_reset(),
+            esc_sgr_reset0(),
+            "g",
+        ];
+        let e1 = [esc_sgr_color(), "d"].join("");
+        let e2 = ["f", esc_sgr_reset(), esc_sgr_reset0()].join("");
+        let expect = vec![
+            (0, "a"),
+            (1, "b"),
+            (2, "c"),
+            (3, &e1),
+            (10, "e"),
+            (11, &e2),
+            (19, "g"),
+        ];
+
+        run_test(&test_input, &expect)
+    }
+
+    // fuzz testing found a problem with this input: [45, 27, 91, 109, 221, 133]
+    // but it doesn't fail in test even with nightly compiler --release vs --test?
+    #[test]
+    fn error_from_fuzz_test() -> Result<()> {
+        //let test_input = ["-\x1b[0m\u{dd}\u{85}"];
+        let input = ["\u{d1}\u{97}\x1b[m\u{d2}\u{83}"];
+        let expected = vec![
+            (0, "\u{d1}"),
+            (2, "\u{97}\x1b[m"),
+            (7, "\u{d2}"),
+            (9, "\u{83}"),
+        ];
+
+        run_test(&input, &expected)
+    }
+
+    #[test]
+    fn new_line_tests() -> Result<()> {
+        // unicode standard says \r\n is a single grapheme.  But separately? or \n\r?
+        let input = ["\r\n", "\na\rb", "\n\r", "\r\n"];
+        let expected = vec![
+            (0, "\r\n"),
+            (2, "\n"),
+            (3, "a"),
+            (4, "\r"),
+            (5, "b"),
+            (6, "\n"),
+            (7, "\r"),
+            (8, "\r\n"),
+        ];
+
+        run_test(&input, &expected)
+    }
+
+    // testing the whole zoo of Unicode is somebody else's problem
+    // but we do test at least test some multi-byte unicode and some grapheme clusters
+
+    #[test]
+    fn unicode_multibyte_mixed_tests() -> Result<()> {
+        // samples from UnicodeSegmentation "a̐éö̲"; // 3 bytes each
+
+        let input = ["a", esc_sgr_color(), "a̐é", esc_sgr_reset(), esc_sgr_reset()];
+        let e1 = [esc_sgr_color(), "a̐"].join("");
+        let e2 = ["é", esc_sgr_reset(), esc_sgr_reset()].join("");
+        let expected = vec![(0, "a"), (1, &e1), (10, &e2)];
+
+        run_test(&input, &expected)
+    }
 }
