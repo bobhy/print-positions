@@ -1,13 +1,13 @@
 [package]
 name = "print-positions"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Bob Hyman"]
 
 description = """
 A library providing string segmentation on grapheme clusters and ANSI escape sequences
 for accurate length arithmetic based on visible print positions.
 """
-keywords = ["text", "unicode", "grapheme", "boundary", "ansi", "escape-sequence"]
+keywords = ["text", "unicode", "grapheme", "ansi", "escape-sequence"]
 readme = "README.md"
 
 license = "MIT OR Apache-2.0"
