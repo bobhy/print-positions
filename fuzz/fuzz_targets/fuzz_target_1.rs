@@ -10,7 +10,7 @@ fuzz_target!(|data: &[u8]| {
 
     if let Ok(s) = std::str::from_utf8(data) {
 
-        for (offset, grap) in print_positions::print_position::new_printPositionIndices(s) {
+        for (offset, grap) in print_positions::print_position_indices(s) {
             assert!(offset < s.len());
             assert!((last_offset == 0  && offset == 0 ) || offset > last_offset, "current offset {offset} not > previous {last_offset}");
             

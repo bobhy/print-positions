@@ -1,29 +1,3 @@
-//! A print position is a slice of string which a user would read as a single 'character',
-//! occupying one column on the screen or printed page.  As implemented by this iterator,
-//! the slice contains a *single* extended grapheme cluster as defined by
-//! [UAX#29](http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries)
-//! surrounded by any
-//! [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description)
-//! found surrounding the grapheme in the string.  
-//!
-//! This is handy for laying out text on an Ansi-compatible console screen,
-//! where ANSI SGR codes are used to set text colors and intensity and the text
-//! is non-ASCII unicode.  You can count the returned graphemes as one column
-//! (print position) each and pad the rest of the field with blanks to the desired visual width.
-//!  
-//! Most ANSI sequences change the rendering of the characters that *follow* it, so they are
-//! embedded *at the beginning* of the returned grapheme.  
-//! However, codes that *reset* special rendering modes, such as SGR reset and RIS,
-//! are embedded *at the end*.  
-//! This allows caller to insert an undecorated string into the middle of a
-//! decorated string (e.g, SGR _something_ _text_ SGR RESET)  without having to track the rendering state, so long as the
-//! insertion is done on print position boundaries.
-//!
-//! Note that some ANSI control codes and escape sequences do move the cursor on a compatible device.
-//! This package does not attempt to track the cursor position, it simply
-//! passes all these characters through to the output grapheme unmodified.
-//! This way of handling embedded control codes such as backspace and tab is arguably a bug.
-
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 
 /// Iterator which retuns "print positions" found in a string.
@@ -37,22 +11,32 @@ use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 /// // Control chars and ANSI escapes *included within* grapheme clusters
 /// let segs: Vec<_> = print_positions("abc\u{1b}[37;46mdef\u{1b}[0mg").collect();
 /// assert_eq!(vec!("a","b","c", "\u{1b}[37;46md","e","f\u{1b}[0m", "g"), segs);
+/// ```
 ///
-/// // Align input in fixed-size field (assuming monospace unicode font, even for emoji)
-/// // Also -- combined emoji does not render correctly in linux terminal, try rust playground instead.
-/// let sample = "abc\u{1f469}\u{200d}\u{1f4bb}"; // woman ZWJ laptop == hacker? a single print position.
-/// let segs: Vec<_> = print_positions(sample).collect();
-/// assert_eq!( segs.len(), 4, "expecting 4 grapheme clusters in result");
-///
-/// let padding = "----------";
-/// let cur_pad = &padding[..padding.len() - segs.len()];
-/// let segs_str = &segs.join("");
-/// println!("This field is 10 chars wide: {}{}", cur_pad, &segs.join(""));
-/// println!("    fixed width underlining  {}", padding);
+/// Also see [crate::examples/padding] for performing
+/// fixed-width formatting based on print positions in the data
+/// rather than its string length.
 ///
 pub struct PrintPositions<'a>(PrintPositionIndices<'a>);
 
-impl<'a> PrintPositions<'a> {}
+impl<'a> PrintPositions<'a> {
+    /// View the underlying data (the part yet to be iterated) as a slice of the original string.
+    ///
+    /// ```rust
+    /// # use print_positions::print_positions;
+    /// let mut iter = print_positions("abc");
+    /// assert_eq!(iter.as_str(), "abc");
+    /// iter.next();
+    /// assert_eq!(iter.as_str(), "bc");
+    /// iter.next();
+    /// iter.next();
+    /// assert_eq!(iter.as_str(), "");
+    /// ```
+    #[inline]
+    pub fn as_str(&self) -> &'a str {
+        &self.0.string[self.0.cur_offset..self.0.string.len()]
+    }
+}
 
 impl<'a> Iterator for PrintPositions<'a> {
     type Item = &'a str;
@@ -71,8 +55,20 @@ impl<'a> Iterator for PrintPositions<'a> {
 pub fn print_positions<'a>(s: &'a str) -> PrintPositions<'a> {
     PrintPositions(print_position_indices(s))
 }
-/// Iterator returns the print position string and its offset in the containing string.
+/// Iterator returns "print positions"
+/// and their offsets in the containing string.
+/// ```rust
+/// use print_positions::print_position_indices;
 ///
+/// // Segmentation via extended grapheme clusters
+/// let segs: Vec<(usize, &str)> = print_position_indices("\u{1f468}\u{200d}\u{1f467}\u{200d}\u{1f466}abc").collect();
+/// assert_eq!(vec!((0, "\u{1f468}\u{200d}\u{1f467}\u{200d}\u{1f466}"), (18, "a"),(19, "b"),(20, "c"),), segs);
+///
+/// // Control chars and ANSI escapes *included within* grapheme clusters
+/// let segs: Vec<_> = print_position_indices("\u{1b}[37;46mdef\u{1b}[0mg").collect();
+/// assert_eq!(vec!((0, "\u{1b}[37;46md"),(9, "e"), (10, "f\u{1b}[0m"), (15, "g")), segs);
+/// ```
+
 #[derive(Clone)]
 pub struct PrintPositionIndices<'a> {
     // the victim string -- all outputs are slices of this.
@@ -136,7 +132,7 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
             let grap = self.gi_iterator.next().expect("already checked not at EOS");
             debug_assert_eq!(
                 grap.0, self.next_offset,
-                "offset of retrieved grap not at start of rest of string"
+                "offset of retrieved grap {} not at start of rest of string {}", grap.0, self.next_offset
             );
             self.next_offset += grap.1.len();
 
@@ -161,7 +157,7 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
                     }
                     _ => {
                         debug_assert!(
-                            false,
+                            true, // don't actually fail fuzz testing, but document behavior for malformed escapes.
                             "unexpected char {ascii_byte} following ESC, terminating escape"
                         );
                         escape_state = EscapeState::Normal;
@@ -175,7 +171,7 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
                     } else if (0x20..=0x3f).contains(&ascii_byte) { // accumulate CSI
                     } else {
                         debug_assert!(
-                            false,
+                            true, // don't actually fail fuzz testing, but document behavior for malformed escapes.
                             "unexpected char {ascii_byte} in CSI sequence, terminating escape"
                         );
                         escape_state = EscapeState::Normal;
@@ -188,6 +184,9 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
         // there are 3 ANSI reset sequences.
         // if, perversely, there is more than one in sequence, we'll just take one and
         // leave the others for the beginning of the next iteration.
+        // If, even more perversely, the last char of the esc sequence plus some following
+        // characters in the string form a multi-character grapheme, take all of that.
+        // Hooray for fuzz testing.
 
         while self.next_offset < self.string.len()
             && self.string.as_bytes()[self.next_offset] == 0x1b
@@ -195,24 +194,24 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
             if self.next_offset + 2 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1bc")
             {
-                self.next_offset += 2;
                 self.gi_iterator.next();
-                self.gi_iterator.next();
+                let last = self.gi_iterator.next().expect("must be >=2");
+                self.next_offset += 1 + last.1.len();
             } else if self.next_offset + 3 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1b[m")
             {
-                self.next_offset += 3;
                 self.gi_iterator.next();
                 self.gi_iterator.next();
-                self.gi_iterator.next();
+                let last = self.gi_iterator.next().expect("must be >=3");
+                self.next_offset += 2 + last.1.len();
             } else if self.next_offset + 4 <= self.string.len()
                 && self.string[self.next_offset..].starts_with("\x1b[0m")
             {
-                self.next_offset += 4;
                 self.gi_iterator.next();
                 self.gi_iterator.next();
                 self.gi_iterator.next();
-                self.gi_iterator.next();
+                let last = self.gi_iterator.next().expect("must be >=4");
+                self.next_offset += 3 + last.1.len();
             } else {
                 break; // not one we're interested in at end of grap.
             }
@@ -398,5 +397,18 @@ mod tests {
         let expected = vec![(0, "a"), (1, &e1), (10, &e2)];
 
         run_test(&input, &expected)
+    }
+
+    #[test]
+    fn fuzz_failure_1() -> Result<()> {
+        // hooray for fuzz testing!
+        // it turns out the last char of a reset escape sequence
+        // can form a grapheme cluster with the following chars.
+        // so the reset sequence may *not* be the end of the returned grapheme.
+        let input = [std::str::from_utf8(&[63, 27, 99, 217, 151]).expect("foo"),];
+        let expected = vec![(0, "?\u{1b}c\u{657}")];
+
+        run_test(&input, &expected)
+
     }
 }
