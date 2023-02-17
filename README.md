@@ -1,3 +1,4 @@
+![Build and test](https://github.com/bobhy/print-positions/actions/workflows/ci.yml/badge.svg)
 # Crate print_positions
 A set of iterators which return the characters making up a "print positions", rather 
 than the individual characters.
