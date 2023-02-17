@@ -1,10 +1,11 @@
+//! Demonstrating the convenience of grapheme cluster length arithmetic
+//! when used for padding or filling fixed width fields
+//! for display on a screen with monospace fonts and unicode + emoji support.
+
 use anyhow::Result;
 use print_positions::print_positions;
 
-/// Demonstrating the convenience of grapheme cluster length arithmetic
-/// when used for padding or filling fixed width fields
-/// for display on a screen with monospace fonts and unicode + emoji support.
-///
+
 fn pad_field<'a>(input: &'a str, width: usize, fill: &str) {
     let padding = fill.repeat(width);
     let segs: Vec<_> = print_positions(input).collect();
