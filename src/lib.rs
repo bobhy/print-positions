@@ -4,7 +4,7 @@
 //! A print position is a generalization of a
 //! [UAX#29 extended grapheme cluster](http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries).
 //! Like the grapheme, it occupies one "character" when rendered on the screen.  
-//! However, it may also contain //! [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description) 
+//! However, it may also contain [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description) 
 //! which affect color or intensity rendering as well.
 //!
 //! ## Example:
@@ -26,7 +26,7 @@
 //! and zero-width joiners and, for ANSI compatible devices and applications, by control codes and escape
 //! sequences which specify text color and emphasis.  The print_position iterators account for these factors
 //! and simplify the arithmetic: the number of columns the content will consume on the screen is 
-//! the number of print position slices returned by one of the iterator.
+//! the number of print position slices returned by the iterator.
 //! 
 
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
