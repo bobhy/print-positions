@@ -1,6 +1,6 @@
 [package]
 name = "print-positions"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Bob Hyman"]
 
 description = """
