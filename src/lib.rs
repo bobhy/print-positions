@@ -1,24 +1,33 @@
-//! The [print_positions] and [print_position_indices] functions provide iterators which return "print position"s.
+//! The [print_positions] and [print_position_indices] functions 
+//! provide iterators which return "print positions".
 //!
 //! A print position is a generalization of a
 //! [UAX#29 extended grapheme cluster](http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries).
-//! It may also contain
-//! [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description).
-//! but always consumes just one display column on the screen or page
-//! (assuming the device and fonts are properly configured).
+//! Like the grapheme, it occupies one "character" when rendered on the screen.  
+//! However, it may also contain //! [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description) 
+//! which affect color or intensity rendering as well.
 //!
 //! ## Example:
 //! ```rust
 //! use print_positions::print_positions;
 //!
-//! // content is e with dieresis displayed in green, with a color reset at the end.  
-//! // Looks like 1 character on the screen
+//! // content is e with dieresis, displayed in green with a color reset at the end.  
+//! // Looks like 1 character on the screen.  See example "padding" to print one out.
 //! let content = ["\u{1b}[30;42m", "\u{0065}", "\u{0308}", "\u{1b}[0m"].join("");
-//! let print_positions = print_positions(content).collect();
-//! assert_eq!(content.len(), 14);          // content is 14 chars long
+//! 
+//! let print_positions:Vec<_> = print_positions(&content).collect();
+//! assert_eq!(content.len(), 15);          // content is 15 chars long
 //! assert_eq!(print_positions.len(), 1);   // but only 1 print position
-//! ``
-//!
+//! ```
+//! ## Rationale:
+//! When laying out a fixed-width screen application, it is useful to know how many visible 
+//! columns a piece of content will consume.  But the number of bytes or characters in
+//! the content is generally larger, inflated by UTF8 encoding, Unicode combining characters 
+//! and zero-width joiners and, for ANSI compatible devices and applications, by control codes and escape
+//! sequences which specify text color and emphasis.  The print_position iterators account for these factors
+//! and simplify the arithmetic: the number of columns the content will consume on the screen is 
+//! the number of print position slices returned by one of the iterator.
+//! 
 
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 
@@ -26,11 +35,11 @@ use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 ///
 /// Each print position is an immutable slice of the source string.  
 /// It contains 1 grapheme cluster (by definition).  
-/// If the source string contains control characters or ANSI escape sequences between graphemes,
-/// they will generally be prepended *before* the *following* cluster.  However, return-to-normal
-/// rendering sequences (SGR 0m, RIS) will be appended *after* the *preceeding* cluster.  This treatment minimizes the
-/// span of altered rendering within the source string.
-/// The iterator passes all characters of the source string through unmodified to one or the other of its returned slices.
+/// The slice will include any ANSI escape codes found between graphemes in the source: generally *preceeding* 
+/// the grapheme (since these codes change the rendering of characters that follow), but sometimes *following* the 
+/// grapheme (for the few codes that reset special graphic rendering).
+/// The iterator passes all characters through transparently and in order from the source string to some 
+/// print position slice.
 ///
 /// ```rust
 /// use print_positions::print_positions;
@@ -47,9 +56,10 @@ use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 /// assert_eq!(content, segs.join(""), "all characters passed through iterator transparently");
 /// ```
 ///
-/// Also see [print_positions::examples/padding] for performing
-/// fixed-width formatting based on print positions in the data
-/// rather than its string length.
+/// Run `cargo run --example padding` 
+/// for an example of 
+/// fixed-width formatting based on counting print positions 
+/// rather than characters in the data.
 ///
 pub struct PrintPositions<'a>(PrintPositionIndices<'a>);
 
