@@ -5,17 +5,18 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
 
-    let mut last_offset = 0;
+    let mut prev_offset = 0;
     let mut out_grap = "".to_string();
 
     if let Ok(s) = std::str::from_utf8(data) {
 
-        for (offset, grap) in print_positions::print_position_indices(s) {
-            assert!(offset < s.len());
-            assert!((last_offset == 0  && offset == 0 ) || offset > last_offset, "current offset {offset} not > previous {last_offset}");
+        for (start, end) in print_positions::print_positions(s) {
+            assert!(end <= s.len());
+            assert!(end > start);
+            assert!((prev_offset == 0  && start == 0 ) || start >= prev_offset, "current offset {start} not > previous {prev_offset}");
             
-            last_offset = offset;
-            out_grap.push_str(grap);
+            prev_offset = end;
+            out_grap.push_str(&s[start .. end]);
         }
 
         assert_eq!(s, out_grap, "catenated output not == input")

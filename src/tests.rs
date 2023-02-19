@@ -21,7 +21,7 @@ fn run_test(tag: &str, expected: &[(usize, &str)], input: &[&str]) -> Result<()>
     let mut observed: Vec<(usize, usize)> = vec![];
     let expected_indices:Vec<(usize, usize)> = expected.iter().map(|i| (i.0, i.0 + i.1.len())).collect();
 
-    for (start, end) in print_position_indices(&test_input) {
+    for (start, end) in print_positions(&test_input) {
         if observed.len() > 0 {
             let prev_end = observed.last().expect("length checked").1;
             assert!(
@@ -37,7 +37,7 @@ fn run_test(tag: &str, expected: &[(usize, &str)], input: &[&str]) -> Result<()>
 
     let mut observed: Vec<&str> = vec![];
 
-    for substring in print_positions(&test_input) {
+    for substring in print_position_data(&test_input) {
         assert!(
             substring.len() > 0,
             "{tag}: empty substring returned (print_positions)"
