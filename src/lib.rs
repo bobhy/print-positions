@@ -1,33 +1,36 @@
-//! The [print_positions] and [print_position_indices] functions 
+//! The [print_positions] and [print_position_indices] functions
 //! provide iterators which return "print positions".
 //!
 //! A print position is a generalization of a
 //! [UAX#29 extended grapheme cluster](http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries).
 //! Like the grapheme, it occupies one "character" when rendered on the screen.  
-//! However, it may also contain [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description) 
+//! However, it may also contain [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Description)
 //! which affect color or intensity rendering as well.
 //!
 //! ## Example:
 //! ```rust
-//! use print_positions::print_positions;
+//! use print_positions::{print_positions, print_position_indices};
 //!
 //! // content is e with dieresis, displayed in green with a color reset at the end.  
 //! // Looks like 1 character on the screen.  See example "padding" to print one out.
-//! let content = ["\u{1b}[30;42m", "\u{0065}", "\u{0308}", "\u{1b}[0m"].join("");
-//! 
-//! let print_positions:Vec<_> = print_positions(&content).collect();
+//! let content = &["\u{1b}[30;42m", "\u{0065}", "\u{0308}", "\u{1b}[0m"].join("");
+//!
+//! let segmented:Vec<_> = print_positions(content).collect();
 //! assert_eq!(content.len(), 15);          // content is 15 chars long
-//! assert_eq!(print_positions.len(), 1);   // but only 1 print position
+//! assert_eq!(segmented.len(), 1);   // but only 1 print position
+//! 
+//! // access number of print positions without examining the content
+//! assert_eq!(print_position_indices(content).count(), 1);
 //! ```
 //! ## Rationale:
-//! When laying out a fixed-width screen application, it is useful to know how many visible 
+//! When laying out a fixed-width screen application, it is useful to know how many visible
 //! columns a piece of content will consume.  But the number of bytes or characters in
-//! the content is generally larger, inflated by UTF8 encoding, Unicode combining characters 
+//! the content is generally larger, inflated by UTF8 encoding, Unicode combining characters
 //! and zero-width joiners and, for ANSI compatible devices and applications, by control codes and escape
 //! sequences which specify text color and emphasis.  The print_position iterators account for these factors
-//! and simplify the arithmetic: the number of columns the content will consume on the screen is 
+//! and simplify the arithmetic: the number of columns the content will consume on the screen is
 //! the number of print position slices returned by the iterator.
-//! 
+//!
 
 #[cfg(test)]
 mod tests;
@@ -35,13 +38,13 @@ mod tests;
 use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 
 /// Iterator which retuns "print positions" found in a string.  
-///
 /// Each print position is an immutable slice of the source string.  
-/// It contains 1 grapheme cluster (by definition).  
-/// The slice will include any ANSI escape codes found between graphemes in the source: generally *preceeding* 
-/// the grapheme (since these codes change the rendering of characters that follow), but sometimes *following* the 
+/// 
+/// A print position contains 1 grapheme cluster (by definition).  
+/// The slice will include any ANSI escape codes found between graphemes in the source: generally *preceeding*
+/// the grapheme (since these codes change the rendering of characters that follow), but sometimes *following* the
 /// grapheme (for the few codes that reset special graphic rendering).
-/// The iterator passes all characters through transparently and in order from the source string to some 
+/// The iterator passes all characters through transparently and in order from the source string to some
 /// print position slice.
 ///
 /// ```rust
@@ -59,9 +62,9 @@ use unicode_segmentation::{GraphemeIndices, UnicodeSegmentation};
 /// assert_eq!(content, segs.join(""), "all characters passed through iterator transparently");
 /// ```
 ///
-/// Run `cargo run --example padding` 
-/// for an example of 
-/// fixed-width formatting based on counting print positions 
+/// Run `cargo run --example padding`
+/// for an example of
+/// fixed-width formatting based on counting print positions
 /// rather than characters in the data.
 ///
 pub struct PrintPositions<'a>(PrintPositionIndices<'a>);
@@ -97,20 +100,30 @@ impl<'a> Iterator for PrintPositions<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((_, s)) = self.0.next() {
-            Some(s)
+        if let Some((start, end)) = self.0.next() {
+            Some(&self.0.string[start..end])
         } else {
             None
         }
     }
 }
 
-/// Iterator returns print position slice along with its starting offset in the source string.
+/// This iterator returns start and end offset of print position in the source string.
+/// It is slightly more efficient than [print_positions] if you don't want to access 
+/// the content immediately.
+/// 
 /// ```rust
 /// use print_positions::print_position_indices;
 ///
-/// let segments: Vec<(usize, &str)> = print_position_indices("\u{1f468}\u{200d}\u{1f467}\u{200d}\u{1f466}abc").collect();
-/// assert_eq!(vec!((0, "\u{1f468}\u{200d}\u{1f467}\u{200d}\u{1f466}"), (18, "a"),(19, "b"),(20, "c"),), segments);
+/// let content = "\u{1f468}\u{200d}\u{1f467}\u{200d}\u{1f466}abc";
+/// let segments: Vec<(usize, usize)> = print_position_indices(content).collect();
+/// assert_eq!(vec!((0, 18), (18, 19), (19, 20), (20, 21)), segments);
+/// 
+/// // access print position data after segmenting source.
+/// assert_eq!( &content[segments[1].0..segments[1].1], "a"); 
+/// 
+/// // Count print positions in content.
+/// assert_eq!( print_position_indices(content).count(), 4);
 /// ```
 #[derive(Clone)]
 pub struct PrintPositionIndices<'a> {
@@ -156,7 +169,9 @@ impl<'a> PrintPositionIndices<'a> {
 }
 
 impl<'a> Iterator for PrintPositionIndices<'a> {
-    type Item = (usize, &'a str);
+    /// Iterator returns tuple of start offset and end + 1 offset
+    /// in source string of current print position.
+    type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.next_offset > self.string.len() {
@@ -288,18 +303,13 @@ impl<'a> Iterator for PrintPositionIndices<'a> {
             }
         }
         // return everything between start and end offsets
-        let retlen = self.next_offset - self.cur_offset;
-        if retlen <= 0 {
+        if self.next_offset <= self.cur_offset {
             return None;
         } else {
-            let retval = (
-                self.cur_offset,
-                &self.string[self.cur_offset..self.next_offset],
-            );
+            let retval = (self.cur_offset, self.next_offset);
             // advance start to one beyond end of what we're returning
             self.cur_offset = self.next_offset;
             return Some(retval);
         }
     }
 }
-

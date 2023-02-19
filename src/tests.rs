@@ -18,21 +18,22 @@ fn esc_sgr_color() -> &'static str {
 fn run_test(tag: &str, expected: &[(usize, &str)], input: &[&str]) -> Result<()> {
     #[allow(unused_mut)]
     let mut test_input = input.join("");
-    let mut observed: Vec<(usize, &str)> = vec![];
+    let mut observed: Vec<(usize, usize)> = vec![];
+    let expected_indices:Vec<(usize, usize)> = expected.iter().map(|i| (i.0, i.0 + i.1.len())).collect();
 
-    for (offset, substring) in print_position_indices(&test_input) {
+    for (start, end) in print_position_indices(&test_input) {
         if observed.len() > 0 {
-            let last_off = observed.last().expect("length checked").0;
+            let prev_end = observed.last().expect("length checked").1;
             assert!(
-                offset > last_off,
-                "{tag}: new offset({offset}) not greater than last seen ({last_off})"
+                start >= prev_end,
+                "{tag}: new offset({start}) not greater than last seen ({prev_end})"
             );
         };
-        assert!(substring.len() > 0, "{tag}: empty substring returned");
-        observed.push((offset, substring));
+        assert!(end > start, "{tag}: empty substring returned");
+        observed.push((start, end));
     }
 
-    assert_eq!(expected, observed, "{tag}: ");
+    assert_eq!(expected_indices, observed, "{tag}: ");
 
     let mut observed: Vec<&str> = vec![];
 
